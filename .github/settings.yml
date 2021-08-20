@@ -1,0 +1,6 @@
+_extends: gh-config
+
+repository:
+  description: It supplies a command line interface API to start/stop/restart a daemon.
+  homepage: https://blog.openacid.com
+  topics: python, daemon
