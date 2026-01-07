@@ -8,8 +8,9 @@ can not run at the same time.
 
 """
 
-__version__ = "0.1.0"
-__name__ = "k3daemonize"
+from importlib.metadata import version
+
+__version__ = version("k3daemonize")
 
 from .daemonize import (
     Daemon,
@@ -17,6 +18,6 @@ from .daemonize import (
 )
 
 __all__ = [
-    'Daemon',
-    'daemonize_cli',
+    "Daemon",
+    "daemonize_cli",
 ]
