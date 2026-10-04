@@ -1,12 +1,11 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 import os
 import time
 import unittest
-import k3daemonize
+
 import k3proc
 import k3ut
+
+import k3daemonize
 
 dd = k3ut.dd
 
@@ -15,9 +14,9 @@ this_base = os.path.dirname(__file__)
 
 def subproc(script, env=None):
     if env is None:
-        env = dict(
-            PYTHONPATH=this_base + "/../..",
-        )
+        env = {
+            "PYTHONPATH": this_base + "/../..",
+        }
 
     return k3proc.shell_script(script, env=env)
 
@@ -27,7 +26,7 @@ def read_file(fn):
         with open(fn, "r") as f:
             cont = f.read()
             return cont
-    except EnvironmentError:
+    except OSError:
         return None
 
 
@@ -40,27 +39,27 @@ class TestDaemonize(unittest.TestCase):
         # kill foo.py and kill bar.py
         # bar.py might be waiting for foo.py to release lock-file.
         try:
-            subproc("python {b}/foo.py stop".format(b=this_base))
-        except Exception as e:
+            subproc(f"python {this_base}/foo.py stop")
+        except OSError as e:
             dd(repr(e))
 
         time.sleep(0.1)
 
         try:
-            subproc("python {b}/bar.py stop".format(b=this_base))
-        except Exception as e:
+            subproc(f"python {this_base}/bar.py stop")
+        except OSError as e:
             dd(repr(e))
 
         # remove written file
 
         try:
             os.unlink(self.foo_fn)
-        except EnvironmentError:
+        except OSError:
             pass
 
         try:
             os.unlink(self.bar_fn)
-        except EnvironmentError:
+        except OSError:
             pass
 
     def setUp(self):
@@ -70,7 +69,7 @@ class TestDaemonize(unittest.TestCase):
         self._clean()
 
     def test_start(self):
-        subproc("python {b}/foo.py start".format(b=this_base))
+        subproc(f"python {this_base}/foo.py start")
         time.sleep(0.2)
 
         self.assertEqual("foo-before", read_file(self.foo_fn))
@@ -78,18 +77,18 @@ class TestDaemonize(unittest.TestCase):
         self.assertEqual("foo-after", read_file(self.foo_fn))
 
     def test_stop(self):
-        subproc("python {b}/foo.py start".format(b=this_base))
+        subproc(f"python {this_base}/foo.py start")
         time.sleep(0.2)
 
         self.assertEqual("foo-before", read_file(self.foo_fn), "foo started")
 
-        subproc("python {b}/foo.py stop".format(b=this_base))
+        subproc(f"python {this_base}/foo.py stop")
         time.sleep(0.2)
 
         self.assertEqual("foo-before", read_file(self.foo_fn), "process has been kill thus no content is updated")
 
     def test_restart(self):
-        subproc("python {b}/foo.py start".format(b=this_base))
+        subproc(f"python {this_base}/foo.py start")
         time.sleep(0.2)
 
         self.assertEqual("foo-before", read_file(self.foo_fn))
@@ -97,15 +96,15 @@ class TestDaemonize(unittest.TestCase):
         os.unlink(self.foo_fn)
         self.assertEqual(None, read_file(self.foo_fn))
 
-        subproc("python {b}/foo.py restart".format(b=this_base))
+        subproc(f"python {this_base}/foo.py restart")
         time.sleep(0.2)
 
         self.assertEqual("foo-before", read_file(self.foo_fn), "restarted and rewritten to the file")
 
     def test_exclusive_pid(self):
-        subproc("python {b}/foo.py start".format(b=this_base))
+        subproc(f"python {this_base}/foo.py start")
         time.sleep(0.1)
-        subproc("python {b}/bar.py start".format(b=this_base))
+        subproc(f"python {this_base}/bar.py start")
         time.sleep(0.1)
 
         self.assertEqual(None, read_file(self.bar_fn), "bar.py not started or run")
@@ -116,9 +115,9 @@ class TestDaemonize(unittest.TestCase):
         self.assertTrue(d.pidfile.startswith("/var/run/"))
 
     def test_close_fds(self):
-        env = dict(PYTHONPATH="{path_daemonize}".format(path_daemonize=this_base + "/../.."))
+        env = {"PYTHONPATH": this_base + "/../.."}
 
-        code, out, err = subproc("python {b}/close_fds.py close".format(b=this_base), env=env)
+        code, out, err = subproc(f"python {this_base}/close_fds.py close", env=env)
 
         dd("close_fds.py close result:")
         dd(code)
@@ -138,7 +137,7 @@ class TestDaemonize(unittest.TestCase):
 
         self._clean()
 
-        code, out, err = subproc("python {b}/close_fds.py open".format(b=this_base), env=env)
+        code, out, err = subproc(f"python {this_base}/close_fds.py open", env=env)
 
         dd("close_fds.py open result:")
         dd(code)

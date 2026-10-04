@@ -28,8 +28,8 @@ pip install k3daemonize
 # Synopsis
 
 ```python
-
 import time
+
 import k3daemonize
 
 
@@ -43,11 +43,10 @@ def run():
 # python foo.py stop
 # python foo.py restart
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # there is at most only one of several processes with the same pid path
     # that can run.
-    k3daemonize.daemonize_cli(run, '/var/run/pid')
-
+    k3daemonize.daemonize_cli(run, "/var/run/pid")
 ```
 
 #   Author

@@ -20,16 +20,18 @@ pip install k3daemonize
 import time
 import k3daemonize
 
+
 def run():
     for i in range(100):
         print(i)
         time.sleep(1)
 
+
 # python foo.py start
 # python foo.py stop
 # python foo.py restart
-if __name__ == '__main__':
-    k3daemonize.daemonize_cli(run, '/var/run/pid')
+if __name__ == "__main__":
+    k3daemonize.daemonize_cli(run, "/var/run/pid")
 ```
 
 ## API Reference

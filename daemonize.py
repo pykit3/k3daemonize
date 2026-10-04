@@ -11,7 +11,7 @@ import __main__
 logger = logging.getLogger(__name__)
 
 
-class Daemon(object):
+class Daemon:
     def __init__(self, pidfile=None, stdin="/dev/null", stdout="/dev/null", stderr="/dev/null", close_fds=False):
         self.stdin = stdin
         self.stdout = stdout
@@ -72,12 +72,10 @@ class Daemon(object):
         # redirect standard file descriptors
         sys.stdout.flush()
         sys.stderr.flush()
-        si = open(self.stdin, "r")
-        so = open(self.stdout, "a+")
-        se = open(self.stderr, "a+")
-        os.dup2(si.fileno(), sys.stdin.fileno())
-        os.dup2(so.fileno(), sys.stdout.fileno())
-        os.dup2(se.fileno(), sys.stderr.fileno())
+        with open(self.stdin, "r") as si, open(self.stdout, "a+") as so, open(self.stderr, "a+") as se:
+            os.dup2(si.fileno(), sys.stdin.fileno())
+            os.dup2(so.fileno(), sys.stdout.fileno())
+            os.dup2(se.fileno(), sys.stderr.fileno())
 
         logger.info("OK daemonized")
 
@@ -97,7 +95,7 @@ class Daemon(object):
                 self.lockfp = os.fdopen(fd, "w+")
                 break
 
-            except IOError as e:
+            except OSError as e:
                 os.close(fd)
                 if e[0] == errno.EAGAIN:
                     time.sleep(interval)
@@ -105,10 +103,10 @@ class Daemon(object):
                     raise
 
         else:
-            logger.info("Failure acquiring lock %s" % (self.lockfile,))
+            logger.info(f"Failure acquiring lock {self.lockfile}")
             sys.exit(1)
 
-        logger.info("OK acquired lock %s" % (self.lockfile))
+        logger.info(f"OK acquired lock {self.lockfile}")
 
     def unlock(self):
         if self.lockfp is None:
@@ -128,7 +126,8 @@ class Daemon(object):
         self.write_pid_or_exit()
 
     def write_pid_or_exit(self):
-        self.pf = open(self.pidfile, "w+")
+        # The pid file stays open in self.pf while the daemon runs.
+        self.pf = open(self.pidfile, "w+")  # noqa: SIM115
         pf = self.pf
 
         fd = pf.fileno()
@@ -141,8 +140,8 @@ class Daemon(object):
             pf.truncate(0)
             pf.write(str(pid))
             pf.flush()
-        except Exception as e:
-            logger.exception("write pid failed." + repr(e))
+        except Exception:
+            logger.exception("write pid failed.")
             sys.exit(0)
 
     def stop(self):
@@ -158,8 +157,8 @@ class Daemon(object):
             os.kill(pid, signal.SIGTERM)
             return
 
-        except Exception as e:
-            logger.warn("{e} while get and kill pid={pid}".format(e=repr(e), pid=pid))
+        except (OSError, ValueError) as e:
+            logger.warning(f"{e!r} while get and kill pid={pid}")
 
 
 def _read_file(fn):
@@ -234,17 +233,17 @@ def daemonize_cli(run_func, pidfn, close_fds=False):
                 run_func()
 
             else:
-                logger.error("Unknown command: %s" % (sys.argv[1]))
+                logger.error(f"Unknown command: {sys.argv[1]}")
                 print("Unknown command")
                 sys.exit(2)
 
             sys.exit(0)
         else:
-            print("usage: %s start|stop|restart" % sys.argv[0])
+            print(f"usage: {sys.argv[0]} start|stop|restart")
             sys.exit(2)
 
-    except Exception as e:
-        logger.exception(repr(e))
+    except Exception:
+        logger.exception("daemonize_cli failed")
 
 
 standard_daemonize = daemonize_cli
