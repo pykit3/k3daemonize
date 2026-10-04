@@ -97,7 +97,9 @@ class Daemon:
 
             except OSError as e:
                 os.close(fd)
-                if e[0] == errno.EAGAIN:
+                # A lock held by another process reports EAGAIN or EACCES,
+                # depending on the OS.
+                if e.errno in (errno.EAGAIN, errno.EACCES):
                     time.sleep(interval)
                 else:
                     raise

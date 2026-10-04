@@ -1,4 +1,6 @@
 import os
+import subprocess
+import sys
 import time
 import unittest
 
@@ -10,6 +12,18 @@ import k3daemonize
 dd = k3ut.dd
 
 this_base = os.path.dirname(__file__)
+
+# Holds an exclusive lock on argv[1] until killed.
+HOLD_LOCK_SCRIPT = """
+import fcntl
+import sys
+import time
+
+f = open(sys.argv[1], "w")
+fcntl.lockf(f, fcntl.LOCK_EX)
+print("locked", flush=True)
+time.sleep(60)
+"""
 
 
 def subproc(script, env=None):
@@ -154,3 +168,26 @@ class TestDaemonize(unittest.TestCase):
         dd("fds:", fds)
 
         self.assertIn(self.bar_fn, fds)
+
+
+class TestTrylock(unittest.TestCase):
+    def test_exit_when_lock_is_held_by_another_process(self):
+        d = k3daemonize.Daemon(pidfile="/tmp/test_daemonize_trylock.pid")
+        holder = subprocess.Popen(
+            [sys.executable, "-c", HOLD_LOCK_SCRIPT, d.lockfile],
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            self.assertEqual("locked\n", holder.stdout.readline())
+
+            with self.assertRaises(SystemExit) as ctx:
+                d.trylock_or_exit(timeout=0.3)
+        finally:
+            holder.kill()
+            holder.wait()
+            holder.stdout.close()
+
+        self.assertEqual(1, ctx.exception.code)
+        self.assertIsNone(d.lockfp)
+        os.unlink(d.lockfile)
