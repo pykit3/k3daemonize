@@ -153,6 +153,22 @@ class Daemon:
             logger.debug("pidfile not exist:" + self.pidfile)
             return
 
+        # A running daemon holds this lock. A free lock means the pid file is
+        # stale, and its pid may belong to an unrelated process by now.
+        fd = os.open(self.lockfile, os.O_RDWR | os.O_CREAT)
+        try:
+            fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as e:
+            # A lock held by another process reports EAGAIN or EACCES,
+            # depending on the OS.
+            if e.errno not in (errno.EAGAIN, errno.EACCES):
+                raise
+        else:
+            logger.info(f"no daemon holds {self.lockfile}, skip the stale pidfile {self.pidfile}")
+            return
+        finally:
+            os.close(fd)
+
         try:
             pid = _read_file(self.pidfile)
             pid = int(pid)

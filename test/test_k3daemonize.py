@@ -254,3 +254,24 @@ class TestExitStatus(unittest.TestCase):
         self.assertIn("daemonize_cli failed", proc.stderr)
         os.rmdir(pidfn)
         os.unlink(pidfn + ".lock")
+
+
+class TestStop(unittest.TestCase):
+    def test_stop_skips_stale_pid_file(self):
+        # No daemon holds the lock, so the pid in the pid file belongs to an unrelated process.
+        pidfn = "/tmp/test_daemonize_stale.pid"
+        other = subprocess.Popen(["sleep", "60"])
+        try:
+            with open(pidfn, "w") as f:
+                f.write(str(other.pid))
+
+            k3daemonize.Daemon(pidfile=pidfn).stop()
+
+            with self.assertRaises(subprocess.TimeoutExpired):
+                other.wait(timeout=0.5)
+        finally:
+            other.kill()
+            other.wait()
+
+        os.unlink(pidfn)
+        os.unlink(pidfn + ".lock")
