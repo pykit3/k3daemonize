@@ -25,6 +25,32 @@ print("locked", flush=True)
 time.sleep(60)
 """
 
+# Writes the pid file argv[1] under a file size limit of 0, so writing the pid fails.
+WRITE_PID_OVER_SIZE_LIMIT_SCRIPT = """
+import resource
+import signal
+import sys
+
+import k3daemonize
+
+signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
+resource.setrlimit(resource.RLIMIT_FSIZE, (0, 0))
+k3daemonize.Daemon(pidfile=sys.argv[1]).write_pid_or_exit()
+"""
+
+# Runs daemonize_cli() in the foreground with the pid file argv[1].
+RUN_CLI_SCRIPT = """
+import sys
+
+import k3daemonize
+
+pidfn = sys.argv.pop(1)
+k3daemonize.daemonize_cli(lambda: None, pidfn)
+"""
+
+# Lets the scripts above import k3daemonize from this checkout.
+SCRIPT_ENV = dict(os.environ, PYTHONPATH=this_base + "/../..")
+
 
 def subproc(script, env=None):
     if env is None:
@@ -191,3 +217,40 @@ class TestTrylock(unittest.TestCase):
         self.assertEqual(1, ctx.exception.code)
         self.assertIsNone(d.lockfp)
         os.unlink(d.lockfile)
+
+
+class TestExitStatus(unittest.TestCase):
+    # Python also exits with 1 on an uncaught error, so each test checks the log too.
+
+    def test_exit_1_when_pid_write_fails(self):
+        pidfn = "/tmp/test_daemonize_write_pid.pid"
+
+        proc = subprocess.run(
+            [sys.executable, "-c", WRITE_PID_OVER_SIZE_LIMIT_SCRIPT, pidfn],
+            env=SCRIPT_ENV,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(1, proc.returncode, proc.stderr)
+        self.assertIn("write pid failed.", proc.stderr)
+        os.unlink(pidfn)
+
+    def test_cli_exit_1_when_pid_file_is_dir(self):
+        # Even root can not open a directory as the pid file.
+        pidfn = "/tmp/test_daemonize_pid_dir"
+        os.makedirs(pidfn, exist_ok=True)
+
+        proc = subprocess.run(
+            [sys.executable, "-c", RUN_CLI_SCRIPT, pidfn],
+            env=SCRIPT_ENV,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(1, proc.returncode, proc.stderr)
+        self.assertIn("daemonize_cli failed", proc.stderr)
+        os.rmdir(pidfn)
+        os.unlink(pidfn + ".lock")

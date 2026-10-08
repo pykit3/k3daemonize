@@ -144,7 +144,7 @@ class Daemon:
             pf.flush()
         except Exception:
             logger.exception("write pid failed.")
-            sys.exit(0)
+            sys.exit(1)
 
     def stop(self):
         pid = None
@@ -246,6 +246,7 @@ def daemonize_cli(run_func, pidfn, close_fds=False):
 
     except Exception:
         logger.exception("daemonize_cli failed")
+        sys.exit(1)
 
 
 standard_daemonize = daemonize_cli
