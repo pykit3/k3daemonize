@@ -172,6 +172,10 @@ class Daemon:
         try:
             pid = _read_file(self.pidfile)
             pid = int(pid)
+            # os.kill() signals a whole process group for a pid of 0 or below.
+            if pid <= 0:
+                raise ValueError(f"invalid pid in {self.pidfile}: {pid}")
+
             os.kill(pid, signal.SIGTERM)
             return
 

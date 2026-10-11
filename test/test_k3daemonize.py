@@ -1,8 +1,10 @@
 import os
+import signal
 import subprocess
 import sys
 import time
 import unittest
+from unittest import mock
 
 import k3proc
 import k3ut
@@ -275,3 +277,37 @@ class TestStop(unittest.TestCase):
 
         os.unlink(pidfn)
         os.unlink(pidfn + ".lock")
+
+    def test_stop_signals_only_a_valid_pid(self):
+        d = k3daemonize.Daemon(pidfile="/tmp/test_daemonize_invalid.pid")
+        holder = subprocess.Popen(
+            [sys.executable, "-c", HOLD_LOCK_SCRIPT, d.lockfile],
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            self.assertEqual("locked\n", holder.stdout.readline())
+
+            for content in ("0", "-1", "", "abc"):
+                with open(d.pidfile, "w") as f:
+                    f.write(content)
+
+                with mock.patch("os.kill") as kill:
+                    d.stop()
+
+                self.assertEqual([], kill.call_args_list, f"pid file content: {content!r}")
+
+            with open(d.pidfile, "w") as f:
+                f.write("123")
+
+            with mock.patch("os.kill") as kill:
+                d.stop()
+
+            self.assertEqual([mock.call(123, signal.SIGTERM)], kill.call_args_list)
+        finally:
+            holder.kill()
+            holder.wait()
+            holder.stdout.close()
+
+        os.unlink(d.pidfile)
+        os.unlink(d.lockfile)
